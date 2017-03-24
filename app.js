@@ -62,7 +62,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
 app.use('/user', user);
-app.use('/profile', ensureLoggedIn, require('./profile')());
+app.use('/profile', ensureLoggedIn);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
