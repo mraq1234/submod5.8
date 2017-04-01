@@ -1,10 +1,31 @@
-extends layout
-
-block content  
-  h1= title
-  p Welcome to #{title}
-  br
-  a(href="/login")
-    button() Login
+doctype html
+html
+  head
+    title= title
+    link(rel='stylesheet', href='/stylesheets/style.css')
+    link(
+        href='//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css',
+        rel='stylesheet'
+        )
+  body
+    if user
+      div.container.text-center
+        div.page-header
+          h2 Welcome #{user.nickname}!
+        img(src=user.picture, width="150px").img-thumbnail
+        br
+        br
+        a(href='/profile')
+          button().btn-primary Profile
+        a(href='/logout') 
+          button().btn-warning Logout
+    else
+      div.container.text-center
+        div.page-header  
+          h1= title
+        p Welcome to #{title}
+        br
+        a(href="/auth/auth0")
+          button().btn-primary Login
 
   

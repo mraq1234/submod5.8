@@ -9,28 +9,26 @@ var dotenv = require('dotenv');
 var passport = require('passport');
 var Auth0Strategy = require('passport-auth0');
 var ensureLoggedIn = require('connect-ensure-login').ensureLoggedIn();
+var jwt_decode = require('jwt-decode');
 
 dotenv.load();
 
 var routes = require('./routes/index');
-var user = require('./routes/user');
+var profileForm = require('./routes/profile');
 
-// This will configure Passport to use Auth0
 var strategy = new Auth0Strategy({
     domain: process.env.AUTH0_DOMAIN,
     clientID: process.env.AUTH0_CLIENT_ID,
     clientSecret: process.env.AUTH0_CLIENT_SECRET,
     callbackURL: process.env.AUTH0_CALLBACK_URL || 'http://localhost:3000/callback'
 }, function(accessToken, refreshToken, extraParams, profile, done) {
-    // accessToken is the token to call Auth0 API (not needed in the most cases)
-    // extraParams.id_token has the JSON Web Token
-    // profile has all the information from the user
+    app.set('userToken', extraParams.id_token);
+    app.set('userId', jwt_decode(extraParams.id_token).sub);
     return done(null, profile);
 });
 
 passport.use(strategy);
 
-// you can use this section to keep a smaller payload
 passport.serializeUser(function(user, done) {
     done(null, user);
 });
@@ -41,12 +39,9 @@ passport.deserializeUser(function(user, done) {
 
 var app = express();
 
-// view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 
-// uncomment after placing your favicon in /public
-//app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -61,20 +56,14 @@ app.use(passport.session());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
-app.use('/user', user);
-app.use('/profile', ensureLoggedIn, require('./profile')());
+app.use('/profile', ensureLoggedIn, profileForm());
 
-// catch 404 and forward to error handler
 app.use(function(req, res, next) {
     var err = new Error('Not Found');
     err.status = 404;
     next(err);
 });
 
-// error handlers
-
-// development error handler
-// will print stacktrace
 if (app.get('env') === 'development') {
     app.use(function(err, req, res, next) {
         res.status(err.status || 500);
@@ -85,8 +74,6 @@ if (app.get('env') === 'development') {
     });
 }
 
-// production error handler
-// no stacktraces leaked to user
 app.use(function(err, req, res, next) {
     res.status(err.status || 500);
     res.render('error', {
@@ -94,6 +81,5 @@ app.use(function(err, req, res, next) {
         error: {}
     });
 });
-
 
 module.exports = app;

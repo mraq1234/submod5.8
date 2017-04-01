@@ -2,3 +2,6 @@ node_modules/
 .env
 npm-debug.log
 .vscode
+.eslintrc.js
+npm-debug.*
+
