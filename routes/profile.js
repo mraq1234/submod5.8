@@ -5,12 +5,17 @@ var express = require('express');
 var extend = require('xtend');
 var forms = require('forms');
 var jwt_decode = require('jwt-decode');
+var User = require('../models');
 
 var request = require("request");
 
 var profileForm = forms.create({
-    givenName: forms.fields.string({required: true}),
-    surname: forms.fields.string({required: true}),
+    givenName: forms.fields.string({
+        required: true
+    }),
+    surname: forms.fields.string({
+        required: true
+    }),
     streetAddress: forms.fields.string(),
     city: forms.fields.string(),
     state: forms.fields.string(),
@@ -19,7 +24,7 @@ var profileForm = forms.create({
 
 function renderForm(req, res, locals) {
     let userMetadata = req.user._json.user_metadata
-    if (!userMetadata) 
+    if (!userMetadata)
         userMetadata = {};
 
     res.render('profile', extend({
@@ -34,12 +39,19 @@ function renderForm(req, res, locals) {
     }, locals || {}));
 }
 
-function patchUserMetadata(data, userToken, userId) {
-    return new Promise(function (res, rej) {
-        
+function callRenderFormWithError(req, res, error) {
+    renderForm(req, res, {
+        errors: [{
+            error: error.userMessage || error.message || String(error)
+        }]
+    });
+}
+
+function patchUserData(data, userToken, userId) {
+    return new Promise(function (resolve, reject) {
         if (!userToken || !userId) {
             const err = new Error("Token or user ID not setted");
-            rej(err);
+            reject(err);
         }
 
         const options = {
@@ -58,25 +70,63 @@ function patchUserMetadata(data, userToken, userId) {
 
         const callback = function (error, response, body) {
             if (error) {
-                return rej(error);
+                return reject(error);
             } else if (response.statusCode !== 200) {
-                console.log("wynik respons status = ", response.statusCode);
                 const err = new Error("Error: " + response.statusCode + " " + response.statusMessage);
-                rej(err);
-            } else 
-                return res();
+                reject(err);
+            } else
+                return resolve();
         }
 
-        request(options, callback);
+        saveUserMetadataDB(data, userId)
+        .then(() => {request(options, callback);})
+        .catch((err) => reject(err));   
     })
+}
+
+function saveUserMetadataDB(data, userId) {
+    return new Promise(function (resolve, reject) {
+        var user = new User();
+        
+        user.userID = userId;
+        user.givenName = data.givenName;
+        user.surname = data.surname;
+        user.streetAddress = data.streetAddress;
+        user.city = data.city;
+        user.state = data.state;
+        user.zip = data.zip;
+
+        User.findOne({
+            userID: userId
+        }, (err, usr) => {
+            if (err) {
+                reject(err);
+            };
+            if (usr) {
+                usr.update(data, (err) => {
+                    if (err) reject(err)
+                    else resolve();
+                })
+            } else {
+                user.save((err) => {
+                    if (err) reject(err)
+                    else resolve();
+                })
+            }
+        });
+    });
 }
 
 module.exports = function profile() {
     var router = express.Router();
 
     router.use(cookieParser());
-    router.use(bodyParser.urlencoded({extended: true}));
-    router.use(csurf({cookie: true}));
+    router.use(bodyParser.urlencoded({
+        extended: true
+    }));
+    router.use(csurf({
+        cookie: true
+    }));
 
     router.all('/', function (req, res) {
 
@@ -85,31 +135,17 @@ module.exports = function profile() {
 
         profileForm.handle(req, {
             success: function (form) {
-                var data = {
-                    givenName: form.data.givenName,
-                    surname: form.data.surname,
-                    streetAddress: form.data.streetAddress,
-                    city: form.data.city,
-                    state: form.data.state,
-                    zip: form.data.zip
-                };
+                var data = form.data;
 
                 req.user._json.user_metadata = data;
 
-                patchUserMetadata(data, userToken, userId).then(() => {
-                    renderForm(req, res, {saved: true});
-                }).catch((err) => {
-                    if (err.developerMessage) {
-                        console.error(err);
-                    }
-                    renderForm(req, res, {
-                        errors: [
-                            {
-                                error: err.userMessage || err.message || String(err)
-                            }
-                        ]
-                    });
-                })
+                patchUserData(data, userToken, userId)
+                    .then(() => {
+                        renderForm(req, res, { saved: true });
+                    })
+                    .catch((err) => {
+                        callRenderFormWithError(req, res, err);
+                    })
             },
             empty: function () {
                 renderForm(req, res);

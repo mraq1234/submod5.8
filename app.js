@@ -10,6 +10,8 @@ var passport = require('passport');
 var Auth0Strategy = require('passport-auth0');
 var ensureLoggedIn = require('connect-ensure-login').ensureLoggedIn();
 var jwt_decode = require('jwt-decode');
+var mongoose = require('mongoose');
+mongoose.Promise = global.Promise;
 
 dotenv.load();
 
@@ -38,6 +40,8 @@ passport.deserializeUser(function(user, done) {
 });
 
 var app = express();
+
+mongoose.connect('mongodb://localhost/usersDB');
 
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
